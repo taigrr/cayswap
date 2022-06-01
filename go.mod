@@ -3,8 +3,10 @@ module github.com/taigrr/cayswap
 go 1.18
 
 require (
+	github.com/gorilla/mux v1.8.0
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/viper v1.12.0
+	github.com/taigrr/systemctl v1.0.3
 )
 
 require (

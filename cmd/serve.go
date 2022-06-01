@@ -1,11 +1,16 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"net/http"
+	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/taigrr/cayswap/api"
 	"github.com/taigrr/cayswap/auth"
+	"github.com/taigrr/cayswap/wg"
 )
 
 var serveCmd = &cobra.Command{
@@ -14,14 +19,23 @@ var serveCmd = &cobra.Command{
 	//TODO: Add better docs here
 	Long: `Run this on the hub of your hub-spoke architecture.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// spin up webserver here
 		k := cmd.Flag("auth").Value.String()
 		if k == "" {
 			log.Fatalf("Error: authorization key is empty!\n")
 		}
 		auth.SetKey(k)
 		k = ""
-		fmt.Println("serve called")
+		wg.SetWGDevice(cmd.Flag("device").Value.String())
+		fmt.Printf("Starting server...\n")
+		router := api.NewRouter()
+
+		server := &http.Server{Addr: cmd.Flag("interface").Value.String(), Handler: router}
+		go func() {
+			time.Sleep(time.Hour / 4)
+			server.Shutdown(context.Background())
+		}()
+		log.Printf("%v\n", server.ListenAndServe())
+		log.Printf("Exit!")
 	},
 }
 

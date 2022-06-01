@@ -7,10 +7,43 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gorilla/mux"
 	"github.com/taigrr/cayswap/auth"
 	"github.com/taigrr/cayswap/types"
 	"github.com/taigrr/cayswap/wg"
 )
+
+type Route struct {
+	Name        string
+	Method      string
+	Pattern     string
+	HandlerFunc http.HandlerFunc
+}
+
+type Routes []Route
+
+var routes = Routes{
+	Route{
+		"SendKey",
+		strings.ToUpper("Post"),
+		"/key",
+		ReceiveKey,
+	},
+}
+
+func NewRouter() *mux.Router {
+	router := mux.NewRouter().StrictSlash(true)
+	for _, route := range routes {
+		var handler http.Handler
+		handler = route.HandlerFunc
+		router.
+			Methods(route.Method).
+			Path(route.Pattern).
+			Name(route.Name).
+			Handler(handler)
+	}
+	return router
+}
 
 func ReceiveKey(w http.ResponseWriter, r *http.Request) {
 	var req types.Request
@@ -33,5 +66,10 @@ func ReceiveKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	wg.ClientAdd(req)
+	go wg.RestartInterface()
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	req = wg.GetServerReq()
+	jr, _ := json.Marshal(req)
+	w.WriteHeader(http.StatusOK)
+	w.Write(jr)
 }
