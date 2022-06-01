@@ -18,7 +18,9 @@ func ClientExists(ip string) bool {
 func ClientAdd(c types.Request) {
 
 }
+func ServerAdd(c types.Request) {
 
+}
 func getIP() string {
 	return ""
 }
@@ -32,7 +34,8 @@ func RestartInterface() {
 	defer restart.Unlock()
 	systemctl.Restart(context.Background(), fmt.Sprintf("wg-quick@%s", wgInterface), systemctl.Options{})
 }
-func GetServerReq() types.Request {
+
+func GenerateReq() types.Request {
 	var r types.Request
 	r.IPAddr = getIP()
 	r.PubKey = getPubKey()

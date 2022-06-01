@@ -68,7 +68,7 @@ func ReceiveKey(w http.ResponseWriter, r *http.Request) {
 	wg.ClientAdd(req)
 	go wg.RestartInterface()
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	req = wg.GetServerReq()
+	req = wg.GenerateReq()
 	jr, _ := json.Marshal(req)
 	w.WriteHeader(http.StatusOK)
 	w.Write(jr)
