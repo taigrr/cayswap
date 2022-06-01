@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/spf13/cobra"
+	"github.com/taigrr/cayswap/auth"
 )
 
 var serveCmd = &cobra.Command{
@@ -13,6 +15,12 @@ var serveCmd = &cobra.Command{
 	Long: `Run this on the hub of your hub-spoke architecture.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// spin up webserver here
+		k := cmd.Flag("auth").Value.String()
+		if k == "" {
+			log.Fatalf("Error: authorization key is empty!\n")
+		}
+		auth.SetKey(k)
+		k = ""
 		fmt.Println("serve called")
 	},
 }

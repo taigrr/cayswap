@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/spf13/cobra"
+	"github.com/taigrr/cayswap/auth"
 )
 
 var swapCmd = &cobra.Command{
@@ -12,6 +14,12 @@ var swapCmd = &cobra.Command{
 	//TODO: better docs here
 	Long: ``,
 	Run: func(cmd *cobra.Command, args []string) {
+		k := cmd.Flag("auth").Value.String()
+		if k == "" {
+			log.Fatalf("Error: authorization key is empty!\n")
+		}
+		auth.SetKey(k)
+		k = ""
 		fmt.Println("swap called")
 		fmt.Printf("Called swap with key: %s\n", cmd.Flag("auth").Value.String())
 	},
