@@ -8,15 +8,12 @@ import (
 	"strings"
 
 	"github.com/taigrr/cayswap/auth"
+	"github.com/taigrr/cayswap/types"
+	"github.com/taigrr/cayswap/wg"
 )
 
-type Request struct {
-	PubKey string `json:"PubKey"`
-	IPAddr string `json:"IPAddr"`
-}
-
 func ReceiveKey(w http.ResponseWriter, r *http.Request) {
-	var req Request
+	var req types.Request
 	clientInterface := r.RemoteAddr
 	clientIP := strings.Split(clientInterface, ":")[0]
 	log.Printf("Received req from %s\n", clientIP)
@@ -26,9 +23,15 @@ func ReceiveKey(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		fmt.Printf("Error decoding incoming body: %v\n", err)
 	}
+	if wg.ClientExists(req.IPAddr) {
+		log.Printf("Error: Client %s already exists. Ignoring.", req.IPAddr)
+		w.WriteHeader(http.StatusExpectationFailed)
+		return
+	}
+	wg.ClientAdd(req)
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 }
