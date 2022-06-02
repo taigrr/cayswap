@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/taigrr/cayswap/auth"
+	"github.com/taigrr/cayswap/types"
 	"github.com/taigrr/cayswap/wg"
 )
 
@@ -28,6 +29,9 @@ var swapCmd = &cobra.Command{
 		wg.SetWGDevice(cmd.Flag("device").Value.String())
 		fmt.Printf("Connecting to Server...\n")
 		req := wg.GenerateReq()
+		if req.IPAddr == "" {
+			log.Fatalf("Could not parse config, ip is empty!")
+		}
 		jr, _ := json.Marshal(req)
 		url := fmt.Sprintf("http://%s/key", cmd.Flag("server-endpoint").Value.String())
 		request, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(jr))
@@ -51,13 +55,14 @@ var swapCmd = &cobra.Command{
 			log.Fatalf("%v\n", err)
 		}
 		json.Unmarshal(body, &req)
-		wg.ServerAdd(req)
+		wg.ServerAdd(req, types.ServerOpts{PersistentKeepAlive: 25, Endpoint: cmd.Flag("wireguard-endpoint").Value.String()})
 		wg.RestartInterface()
 		fmt.Println("Interface swapped!")
 	},
 }
 
 func init() {
+	swapCmd.Flags().StringP("wireguard-endpoint", "w", "", "Endpoint (such as 127.0.0.1:41574) for wireguard to listen to")
 	swapCmd.Flags().StringP("server-endpoint", "s", "", "Endpoint (such as 127.0.0.1:5150) to send a keyswap event to")
 	swapCmd.Flags().StringP("device", "d", "wg0", "Interface to manage in /etc/wireguard/")
 	swapCmd.Flags().Bool("restart", true, "Restart the wg-quick@ interface upon update")

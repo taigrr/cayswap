@@ -11,6 +11,7 @@ import (
 	"github.com/taigrr/cayswap/auth"
 	"github.com/taigrr/cayswap/types"
 	"github.com/taigrr/cayswap/wg"
+	"github.com/taigrr/cayswap/wg/parser"
 )
 
 type Route struct {
@@ -60,15 +61,18 @@ func ReceiveKey(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fmt.Printf("Error decoding incoming body: %v\n", err)
 	}
-	if wg.ClientExists(req.IPAddr) {
-		log.Printf("Error: Client %s already exists. Ignoring.", req.IPAddr)
+	if wg.ClientExists(req.PubKey, req.IPAddr) {
+		log.Printf("Error: Client %s already exists (%s). Ignoring.", req.IPAddr, req.Comment)
 		w.WriteHeader(http.StatusExpectationFailed)
 		return
 	}
 	wg.ClientAdd(req)
+	log.Printf("Success: Client %s added for  (%s)", req.Comment, req.IPAddr)
+	//TODO use a flag for this
 	go wg.RestartInterface()
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	req = wg.GenerateReq()
+	req.IPAddr = parser.ReduceIP(req.IPAddr)
 	jr, _ := json.Marshal(req)
 	w.WriteHeader(http.StatusOK)
 	w.Write(jr)

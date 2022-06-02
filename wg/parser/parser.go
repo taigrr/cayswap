@@ -35,7 +35,7 @@ type Peer struct {
 	PublicKey           string
 	AllowedIPs          Addresses // may be specified multiple times, comma-separated
 	Endpoint            string
-	PersistentKeepalive int
+	PersistentKeepAlive int
 	PresharedKey        string
 }
 
@@ -145,9 +145,9 @@ func (p Peer) String() string {
 		b.WriteString("\n")
 	}
 
-	if p.PersistentKeepalive != -1 {
+	if p.PersistentKeepAlive != -1 {
 		b.WriteString("PersistentKeepalive = ")
-		b.WriteString(strconv.Itoa(p.PersistentKeepalive))
+		b.WriteString(strconv.Itoa(p.PersistentKeepAlive))
 		b.WriteString("\n")
 	}
 
@@ -200,13 +200,18 @@ func (p Peer) addLine(line string) Peer {
 	case "persistentkeepalive":
 		pka, err := strconv.Atoi(val)
 		if err == nil {
-			p.PersistentKeepalive = pka
+			p.PersistentKeepAlive = pka
 		}
 	case "presharedkey":
 		p.PresharedKey = val
 	}
 
 	return p
+}
+
+func ReduceIP(i string) string {
+	_, a, _ := net.ParseCIDR(i)
+	return a.String()
 }
 
 func parseAddress(a string) (Address, error) {
