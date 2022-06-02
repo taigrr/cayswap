@@ -3,9 +3,11 @@ package wg
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/taigrr/cayswap/types"
+	"github.com/taigrr/cayswap/wg/parser"
 	"github.com/taigrr/systemctl"
 )
 
@@ -27,6 +29,17 @@ func getIP() string {
 
 func getPubKey() string {
 	return ""
+}
+
+func ReadConfig() (parser.Config, error) {
+	restart.Lock()
+	defer restart.Unlock()
+	return parser.ParseConfig(fmt.Sprintf("/etc/wireguard/%s.conf", wgInterface))
+}
+func WriteConfig(p parser.Config) {
+	restart.Lock()
+	defer restart.Unlock()
+	os.WriteFile(fmt.Sprintf("/etc/wireguard/%s.conf", wgInterface), []byte(p.String()), 0600)
 }
 
 func RestartInterface() {
