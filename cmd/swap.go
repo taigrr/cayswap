@@ -32,6 +32,9 @@ var swapCmd = &cobra.Command{
 		if req.IPAddr == "" {
 			log.Fatalf("Could not parse config, ip is empty!")
 		}
+		if req.PubKey == "" {
+			log.Fatalf("Could not parse config, key is empty!")
+		}
 		jr, _ := json.Marshal(req)
 		url := fmt.Sprintf("http://%s/key", cmd.Flag("server-endpoint").Value.String())
 		request, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(jr))

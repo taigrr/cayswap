@@ -2,6 +2,7 @@ package wg
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -34,16 +35,21 @@ func ClientExists(key string, ip string) bool {
 }
 
 //TODO move mutex to here not inside reader
-func ClientAdd(c types.Request) {
+func ClientAdd(c types.Request) error {
+	if c.PubKey == "" {
+		return errors.New("Error: public key is empty!")
+	}
 	restart.Lock()
 	defer restart.Unlock()
 	conf, _ := readConfig()
 	p := parser.Peer{}
+	// TODO allow this to be comma-separated
 	p.AllowedIPs = append(p.AllowedIPs, parser.Address(c.IPAddr))
 	p.Comment = c.Comment
 	p.PublicKey = c.PubKey
 	conf.Peers = append(conf.Peers, p)
 	writeConfig(conf)
+	return nil
 }
 func ServerAdd(c types.Request, opts types.ServerOpts) {
 	restart.Lock()
