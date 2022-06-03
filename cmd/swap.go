@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/taigrr/cayswap/auth"
@@ -29,6 +30,8 @@ var swapCmd = &cobra.Command{
 		wg.SetWGDevice(cmd.Flag("device").Value.String())
 		fmt.Printf("Connecting to Server...\n")
 		req := wg.GenerateReq()
+		//TODO fix this
+		req.IPAddr = strings.ReplaceAll(req.IPAddr, "/24", "/32")
 		if req.IPAddr == "" {
 			log.Fatalf("Could not parse config, ip is empty!")
 		}
