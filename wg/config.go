@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/taigrr/cayswap/types"
 	"github.com/taigrr/cayswap/wg/parser"
@@ -15,6 +16,7 @@ import (
 
 var restart sync.Mutex
 var wgInterface string
+var needsRestart bool
 
 func ClientExists(key string, ip string) bool {
 	c, err := ReadConfig()
@@ -117,8 +119,15 @@ func WriteConfig(p parser.Config) {
 
 func RestartInterface() {
 	restart.Lock()
+	needsRestart = true
+	restart.Unlock()
+	time.Sleep(time.Second * 30)
+	restart.Lock()
 	defer restart.Unlock()
-	systemctl.Restart(context.Background(), fmt.Sprintf("wg-quick@%s", wgInterface), systemctl.Options{})
+	if needsRestart {
+		needsRestart = false
+		systemctl.Restart(context.Background(), fmt.Sprintf("wg-quick@%s", wgInterface), systemctl.Options{})
+	}
 }
 
 func GenerateReq() types.Request {
