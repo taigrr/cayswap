@@ -1,6 +1,5 @@
 /*
 Copyright © 2022 Tai Groot
-
 */
 package cmd
 
@@ -10,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
 	"github.com/taigrr/cayswap/util"
 )
 
