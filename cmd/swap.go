@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -17,9 +17,10 @@ import (
 
 var swapCmd = &cobra.Command{
 	Use:   "swap",
-	Short: "Post the key off as a client.",
-	//TODO: better docs here
-	Long: ``,
+	Short: "Exchange WireGuard keys with a cayswap server",
+	Long: `Send this node's WireGuard public key to a cayswap server and receive
+the server's public key in return. Both nodes update their WireGuard
+configuration and restart the interface to establish the tunnel.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		k := cmd.Flag("auth").Value.String()
 		if k == "" {
@@ -30,7 +31,7 @@ var swapCmd = &cobra.Command{
 		wg.SetWGDevice(cmd.Flag("device").Value.String())
 		fmt.Printf("Connecting to Server...\n")
 		req := wg.GenerateReq()
-		//TODO fix this
+		// Use a /32 mask for client peer entries (single host, not subnet)
 		req.IPAddr = strings.ReplaceAll(req.IPAddr, "/24", "/32")
 		if req.IPAddr == "" {
 			log.Fatalf("Could not parse config, ip is empty!")
@@ -56,7 +57,7 @@ var swapCmd = &cobra.Command{
 			log.Printf("Error communicating with the server: %d", response.StatusCode)
 			return
 		}
-		body, err := ioutil.ReadAll(response.Body)
+		body, err := io.ReadAll(response.Body)
 		if err != nil {
 			log.Fatalf("%v\n", err)
 		}

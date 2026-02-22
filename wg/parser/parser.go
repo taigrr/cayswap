@@ -245,14 +245,14 @@ func (i Interface) addLine(line string) Interface {
 		}
 	case "mtu":
 		mtu, err := strconv.Atoi(val)
-		if err != nil {
+		if err == nil {
 			i.MTU = mtu
 		}
 	case "dns":
 		for _, a := range strings.Split(val, ",") {
 			address, err := parseAddress(a)
 			if err == nil {
-				i.DNS = append(i.Addresses, address)
+				i.DNS = append(i.DNS, address)
 			}
 		}
 	case "table":
