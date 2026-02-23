@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,7 +37,6 @@ func ClientExists(key string, ip string) bool {
 	return false
 }
 
-//TODO move mutex to here not inside reader
 func ClientAdd(c types.Request) error {
 	if c.PubKey == "" {
 		return errors.New("Error: public key is empty!")
@@ -45,8 +45,12 @@ func ClientAdd(c types.Request) error {
 	defer restart.Unlock()
 	conf, _ := readConfig()
 	p := parser.Peer{}
-	// TODO allow this to be comma-separated
-	p.AllowedIPs = append(p.AllowedIPs, parser.Address(c.IPAddr))
+	for _, ip := range strings.Split(c.IPAddr, ",") {
+		ip = strings.TrimSpace(ip)
+		if ip != "" {
+			p.AllowedIPs = append(p.AllowedIPs, parser.Address(ip))
+		}
+	}
 	p.Comment = c.Comment
 	p.PublicKey = c.PubKey
 	conf.Peers = append(conf.Peers, p)
@@ -76,24 +80,28 @@ func getIP() string {
 	return c.Interface.Addresses.String()
 }
 
-//TODO return a proper error here instead of the empty string
-func GetPubKey() string {
+// GetPubKey returns the public key derived from the interface's private key.
+func GetPubKey() (string, error) {
 	c, err := ReadConfig()
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("reading config: %w", err)
 	}
 	if c.Interface.PrivateKey == "" {
-		return ""
+		return "", errors.New("private key is empty")
 	}
-	return pubKey(c.Interface.PrivateKey)
+	key, err := pubKey(c.Interface.PrivateKey)
+	if err != nil {
+		return "", fmt.Errorf("deriving public key: %w", err)
+	}
+	return key, nil
 }
 
-func pubKey(priv string) string {
+func pubKey(priv string) (string, error) {
 	k, err := wgtypes.ParseKey(priv)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("parsing private key: %w", err)
 	}
-	return k.PublicKey().String()
+	return k.PublicKey().String(), nil
 }
 
 func NewPrivKey() string {
@@ -133,7 +141,7 @@ func RestartInterface() {
 func GenerateReq() types.Request {
 	var r types.Request
 	r.IPAddr = getIP()
-	r.PubKey = GetPubKey()
+	r.PubKey, _ = GetPubKey()
 	r.Comment, _ = os.Hostname()
 	return r
 }

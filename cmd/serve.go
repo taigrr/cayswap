@@ -15,9 +15,11 @@ import (
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "begin listening for keyswap requests",
-	//TODO: Add better docs here
-	Long: `Run this on the hub of your hub-spoke architecture.`,
+	Short: "Start the cayswap server to accept key exchange requests",
+	Long: `Run this on the hub of your hub-spoke WireGuard architecture. The server
+listens for incoming key swap requests from clients, adds their public keys
+to the local WireGuard configuration, and returns its own public key. The
+server automatically shuts down after 15 minutes for security.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		k := cmd.Flag("auth").Value.String()
 		if k == "" {

@@ -68,7 +68,6 @@ func ReceiveKey(w http.ResponseWriter, r *http.Request) {
 	}
 	wg.ClientAdd(req)
 	log.Printf("Success: Client %s added for  (%s)", req.Comment, req.IPAddr)
-	//TODO use a flag for this
 	go wg.RestartInterface()
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	req = wg.GenerateReq()
