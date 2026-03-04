@@ -6,7 +6,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
-	github.com/taigrr/systemctl v1.0.10
+	github.com/taigrr/systemctl v1.1.0
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20241231184526-a9ab2273dd10
 )
 
