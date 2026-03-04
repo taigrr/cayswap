@@ -39,7 +39,7 @@ func ClientExists(key string, ip string) bool {
 
 func ClientAdd(c types.Request) error {
 	if c.PubKey == "" {
-		return errors.New("Error: public key is empty!")
+		return errors.New("public key is empty")
 	}
 	restart.Lock()
 	defer restart.Unlock()
