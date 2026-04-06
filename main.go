@@ -1,6 +1,5 @@
 /*
 Copyright © 2022 Tai Groot
-
 */
 package main
 

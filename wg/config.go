@@ -44,7 +44,7 @@ func ClientAdd(c types.Request) error {
 	restart.Lock()
 	defer restart.Unlock()
 	conf, _ := readConfig()
-	p := parser.Peer{}
+	p := parser.NewPeer()
 	for _, ip := range strings.Split(c.IPAddr, ",") {
 		ip = strings.TrimSpace(ip)
 		if ip != "" {
@@ -61,7 +61,7 @@ func ServerAdd(c types.Request, opts types.ServerOpts) {
 	restart.Lock()
 	defer restart.Unlock()
 	conf, _ := readConfig()
-	p := parser.Peer{}
+	p := parser.NewPeer()
 	p.AllowedIPs = append(p.AllowedIPs, parser.Address(c.IPAddr))
 	p.Comment = c.Comment
 	p.PublicKey = c.PubKey

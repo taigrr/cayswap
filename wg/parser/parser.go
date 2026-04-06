@@ -160,15 +160,17 @@ func (p Peer) String() string {
 	return b.String()
 }
 
-func init() {
-	// net.CIDRMask
-}
-
 func New() Config {
 	var c Config
 	c.Interface.ListenPort = -1
 	c.Interface.MTU = -1
 	return c
+}
+
+// NewPeer returns a Peer with sentinel defaults matching the
+// serialization logic (PersistentKeepAlive = -1 means omit).
+func NewPeer() Peer {
+	return Peer{PersistentKeepAlive: -1}
 }
 
 const (
@@ -216,8 +218,15 @@ func ReduceIP(i string) string {
 
 func parseAddress(a string) (Address, error) {
 	a = strings.TrimSpace(a)
-	_, _, err := net.ParseCIDR(a)
-	return Address(a), err
+	// Try CIDR first (e.g. 10.0.0.1/24)
+	if _, _, err := net.ParseCIDR(a); err == nil {
+		return Address(a), nil
+	}
+	// Fall back to plain IP (e.g. DNS entries like 1.1.1.1)
+	if ip := net.ParseIP(a); ip != nil {
+		return Address(a), nil
+	}
+	return Address(a), &net.ParseError{Type: "address", Text: a}
 }
 
 func (i Interface) addLine(line string) Interface {
@@ -298,7 +307,7 @@ func ParseConfig(file string) (Config, error) {
 		if strings.HasPrefix(line, "[Peer]") {
 			mode = modePeer
 			peer++
-			c.Peers = append(c.Peers, Peer{})
+			c.Peers = append(c.Peers, NewPeer())
 			splits := strings.SplitN(line, "#", 2)
 			if len(splits) == 2 {
 				c.Peers[peer].Comment = strings.TrimSpace(splits[1])
