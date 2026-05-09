@@ -2,8 +2,8 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 
@@ -32,6 +32,20 @@ var routes = Routes{
 	},
 }
 
+var (
+	isAuthorized     = auth.IsAuthorized
+	clientExists     = wg.ClientExists
+	clientAdd        = wg.ClientAdd
+	restartInterface = wg.RestartInterface
+	generateReq      = wg.GenerateReq
+	reduceIP         = parser.ReduceIP
+	marshalJSON      = defaultMarshalJSON
+)
+
+func defaultMarshalJSON(v any) ([]byte, error) {
+	return json.Marshal(v)
+}
+
 func NewRouter() *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
 	for _, route := range routes {
@@ -47,31 +61,48 @@ func NewRouter() *mux.Router {
 
 func ReceiveKey(w http.ResponseWriter, r *http.Request) {
 	var req types.Request
-	clientInterface := r.RemoteAddr
-	clientIP := strings.Split(clientInterface, ":")[0]
-	log.Printf("Received req from %s\n", clientIP)
-	key := r.Header.Get("key")
-	if !auth.IsAuthorized(key) {
-		fmt.Printf("Invalid key `%s` received, ignoring request!\n", key)
-		w.WriteHeader(http.StatusUnauthorized)
+	clientIP := remoteHost(r.RemoteAddr)
+	log.Printf("Received req from %s", clientIP)
+	if !isAuthorized(r.Header.Get("key")) {
+		log.Printf("Unauthorized key exchange attempt from %s", clientIP)
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		fmt.Printf("Error decoding incoming body: %v\n", err)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("Error decoding incoming body from %s: %v", clientIP, err)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
 	}
-	if wg.ClientExists(req.PubKey, req.IPAddr) {
+	if clientExists(req.PubKey, req.IPAddr) {
 		log.Printf("Error: Client %s already exists (%s). Ignoring.", req.IPAddr, req.Comment)
-		w.WriteHeader(http.StatusExpectationFailed)
+		http.Error(w, http.StatusText(http.StatusExpectationFailed), http.StatusExpectationFailed)
 		return
 	}
-	wg.ClientAdd(req)
-	log.Printf("Success: Client %s added for  (%s)", req.Comment, req.IPAddr)
-	go wg.RestartInterface()
+	if err := clientAdd(req); err != nil {
+		log.Printf("Error adding client %s (%s): %v", req.Comment, req.IPAddr, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	log.Printf("Success: Client %s added for (%s)", req.Comment, req.IPAddr)
+	go restartInterface()
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	req = wg.GenerateReq()
-	req.IPAddr = parser.ReduceIP(req.IPAddr)
-	jr, _ := json.Marshal(req)
+	resp := generateReq()
+	resp.IPAddr = reduceIP(resp.IPAddr)
+	jr, err := marshalJSON(resp)
+	if err != nil {
+		log.Printf("Error encoding response for %s: %v", clientIP, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
-	w.Write(jr)
+	if _, err := w.Write(jr); err != nil {
+		log.Printf("Error writing response to %s: %v", clientIP, err)
+	}
+}
+
+func remoteHost(remoteAddr string) string {
+	if host, _, err := net.SplitHostPort(remoteAddr); err == nil {
+		return host
+	}
+	return remoteAddr
 }
