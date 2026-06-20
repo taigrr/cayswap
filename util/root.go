@@ -1,14 +1,13 @@
 package util
 
-import (
-	"log"
-	"os/user"
-)
+import "os/user"
 
+// IsRoot reports whether the current process is running as the root user.
+// If the current user cannot be determined, it returns false.
 func IsRoot() bool {
 	currentUser, err := user.Current()
 	if err != nil {
-		log.Fatalf("Unable to get current user: %s", err)
+		return false
 	}
 	return currentUser.Uid == "0"
 }

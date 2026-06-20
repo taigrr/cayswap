@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"bufio"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -150,6 +152,14 @@ func TestParseConfigMissingFile(t *testing.T) {
 	}
 }
 
+func TestParseConfigScannerError(t *testing.T) {
+	path := writeTestConfig(t, "[Interface]\n# "+strings.Repeat("x", bufio.MaxScanTokenSize+1))
+	_, err := ParseConfig(path)
+	if !errors.Is(err, bufio.ErrTooLong) {
+		t.Fatalf("expected scanner token too long error, got %v", err)
+	}
+}
+
 func TestParseConfigEmpty(t *testing.T) {
 	path := writeTestConfig(t, "")
 	cfg, err := ParseConfig(path)
@@ -202,11 +212,32 @@ func TestReduceIP(t *testing.T) {
 		{"10.0.0.5/24", "10.0.0.0/24"},
 		{"192.168.1.100/32", "192.168.1.100/32"},
 		{"10.0.0.1/8", "10.0.0.0/8"},
+		{"not-cidr", "not-cidr"},
+		{"", ""},
 	}
 	for _, tc := range tests {
 		got := ReduceIP(tc.input)
 		if got != tc.want {
 			t.Errorf("ReduceIP(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestHostIP(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"10.0.0.5/24", "10.0.0.5/32"},
+		{"10.0.0.5/16", "10.0.0.5/32"},
+		{"192.168.1.100/32", "192.168.1.100/32"},
+		{"fd00::1/64", "fd00::1/128"},
+		{"not-cidr", "not-cidr"},
+		{"", ""},
+	}
+	for _, tc := range tests {
+		if got := HostIP(tc.input); got != tc.want {
+			t.Errorf("HostIP(%q) = %q, want %q", tc.input, got, tc.want)
 		}
 	}
 }

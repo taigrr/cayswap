@@ -15,7 +15,7 @@ func resetAPIHooks() {
 	isAuthorized = func(string) bool { return true }
 	clientExists = func(string, string) bool { return false }
 	clientAdd = func(types.Request) error { return nil }
-	restartInterface = func() {}
+	restartInterface = func() error { return nil }
 	generateReq = func() types.Request {
 		return types.Request{IPAddr: "10.0.0.1/24", PubKey: "server-pub", Comment: "server"}
 	}
@@ -76,7 +76,7 @@ func TestReceiveKeyAddsClientAndReturnsServerDetails(t *testing.T) {
 		}
 		return nil
 	}
-	restartInterface = func() { restarted <- struct{}{} }
+	restartInterface = func() error { restarted <- struct{}{}; return nil }
 	reduceIP = func(input string) string {
 		if input != "10.0.0.1/24" {
 			t.Fatalf("unexpected ip to reduce: %q", input)
