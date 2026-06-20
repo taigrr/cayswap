@@ -61,65 +61,38 @@ func (a Addresses) String() string {
 	return strings.Join(addr, ",")
 }
 
+// writeField writes "key = val\n" to b when val is non-empty.
+func writeField(b *strings.Builder, key, val string) {
+	if val == "" {
+		return
+	}
+	b.WriteString(key)
+	b.WriteString(" = ")
+	b.WriteString(val)
+	b.WriteString("\n")
+}
+
 func (i Interface) String() string {
 	var b strings.Builder
 	b.WriteString("[Interface]\n")
 
-	if i.PrivateKey != "" {
-		b.WriteString("PrivateKey = ")
-		b.WriteString(i.PrivateKey)
-		b.WriteString("\n")
-	}
-
-	if i.Addresses.String() != "" {
-		b.WriteString("Address = ")
-		b.WriteString(i.Addresses.String())
-		b.WriteString("\n")
-	}
-
-	if i.DNS.String() != "" {
-		b.WriteString("DNS = ")
-		b.WriteString(i.DNS.String())
-		b.WriteString("\n")
-	}
+	writeField(&b, "PrivateKey", i.PrivateKey)
+	writeField(&b, "Address", i.Addresses.String())
+	writeField(&b, "DNS", i.DNS.String())
 	if i.ListenPort != -1 {
-		b.WriteString("ListenPort = ")
-		b.WriteString(strconv.Itoa(i.ListenPort))
-		b.WriteString("\n")
+		writeField(&b, "ListenPort", strconv.Itoa(i.ListenPort))
 	}
 	if i.SaveConfig {
 		b.WriteString("SaveConfig = true\n")
 	}
-	if i.Table != "" {
-		b.WriteString("Table = ")
-		b.WriteString(i.Table)
-		b.WriteString("\n")
-	}
+	writeField(&b, "Table", i.Table)
 	if i.MTU != -1 {
-		b.WriteString("MTU = ")
-		b.WriteString(strconv.Itoa(i.MTU))
-		b.WriteString("\n")
+		writeField(&b, "MTU", strconv.Itoa(i.MTU))
 	}
-	if i.PreUp != "" {
-		b.WriteString("PreUp = ")
-		b.WriteString(i.PreUp)
-		b.WriteString("\n")
-	}
-	if i.PreDown != "" {
-		b.WriteString("PreDown = ")
-		b.WriteString(i.PreDown)
-		b.WriteString("\n")
-	}
-	if i.PostUp != "" {
-		b.WriteString("PostUp = ")
-		b.WriteString(i.PostUp)
-		b.WriteString("\n")
-	}
-	if i.PostDown != "" {
-		b.WriteString("PostDown = ")
-		b.WriteString(i.PostDown)
-		b.WriteString("\n")
-	}
+	writeField(&b, "PreUp", i.PreUp)
+	writeField(&b, "PreDown", i.PreDown)
+	writeField(&b, "PostUp", i.PostUp)
+	writeField(&b, "PostDown", i.PostDown)
 
 	return b.String()
 }
@@ -133,31 +106,13 @@ func (p Peer) String() string {
 	}
 	b.WriteString("\n")
 
-	b.WriteString("PublicKey = ")
-	b.WriteString(p.PublicKey)
-	b.WriteString("\n")
-
-	b.WriteString("AllowedIPs = ")
-	b.WriteString(p.AllowedIPs.String())
-	b.WriteString("\n")
-
-	if p.Endpoint != "" {
-		b.WriteString("Endpoint = ")
-		b.WriteString(p.Endpoint)
-		b.WriteString("\n")
-	}
-
+	writeField(&b, "PublicKey", p.PublicKey)
+	writeField(&b, "AllowedIPs", p.AllowedIPs.String())
+	writeField(&b, "Endpoint", p.Endpoint)
 	if p.PersistentKeepAlive != -1 {
-		b.WriteString("PersistentKeepalive = ")
-		b.WriteString(strconv.Itoa(p.PersistentKeepAlive))
-		b.WriteString("\n")
+		writeField(&b, "PersistentKeepalive", strconv.Itoa(p.PersistentKeepAlive))
 	}
-
-	if p.PresharedKey != "" {
-		b.WriteString("PresharedKey = ")
-		b.WriteString(p.PresharedKey)
-		b.WriteString("\n")
-	}
+	writeField(&b, "PresharedKey", p.PresharedKey)
 
 	return b.String()
 }
@@ -193,19 +148,11 @@ func (p Peer) addLine(line string) Peer {
 	case "publickey":
 		p.PublicKey = val
 	case "allowedips":
-		for a := range strings.SplitSeq(val, ",") {
-			address, err := parseAddress(a)
-			if err == nil {
-				p.AllowedIPs = append(p.AllowedIPs, address)
-			}
-		}
+		p.AllowedIPs = append(p.AllowedIPs, parseAddresses(val)...)
 	case "endpoint":
 		p.Endpoint = val
 	case "persistentkeepalive":
-		pka, err := strconv.Atoi(val)
-		if err == nil {
-			p.PersistentKeepAlive = pka
-		}
+		parseInt(val, &p.PersistentKeepAlive)
 	case "presharedkey":
 		p.PresharedKey = val
 	}
@@ -252,6 +199,26 @@ func parseAddress(a string) (Address, error) {
 	return Address(a), &net.ParseError{Type: "address", Text: a}
 }
 
+// parseAddresses parses a comma-separated list of addresses, returning only
+// the entries that parse successfully.
+func parseAddresses(val string) Addresses {
+	var out Addresses
+	for a := range strings.SplitSeq(val, ",") {
+		if address, err := parseAddress(a); err == nil {
+			out = append(out, address)
+		}
+	}
+	return out
+}
+
+// parseInt sets *dst to the parsed value of val when it is a valid integer,
+// leaving *dst untouched otherwise.
+func parseInt(val string, dst *int) {
+	if n, err := strconv.Atoi(val); err == nil {
+		*dst = n
+	}
+}
+
 func (i Interface) addLine(line string) Interface {
 	splits := strings.SplitN(line, "=", 2)
 	key := strings.ToLower(strings.TrimSpace(splits[0]))
@@ -264,29 +231,13 @@ func (i Interface) addLine(line string) Interface {
 	case "privatekey":
 		i.PrivateKey = val
 	case "listenport":
-		port, err := strconv.Atoi(val)
-		if err == nil {
-			i.ListenPort = port
-		}
+		parseInt(val, &i.ListenPort)
 	case "address":
-		for a := range strings.SplitSeq(val, ",") {
-			address, err := parseAddress(a)
-			if err == nil {
-				i.Addresses = append(i.Addresses, address)
-			}
-		}
+		i.Addresses = append(i.Addresses, parseAddresses(val)...)
 	case "mtu":
-		mtu, err := strconv.Atoi(val)
-		if err == nil {
-			i.MTU = mtu
-		}
+		parseInt(val, &i.MTU)
 	case "dns":
-		for a := range strings.SplitSeq(val, ",") {
-			address, err := parseAddress(a)
-			if err == nil {
-				i.DNS = append(i.DNS, address)
-			}
-		}
+		i.DNS = append(i.DNS, parseAddresses(val)...)
 	case "table":
 		i.Table = val
 	case "preup":
@@ -298,10 +249,7 @@ func (i Interface) addLine(line string) Interface {
 	case "postdown":
 		i.PostDown = val
 	case "saveconfig":
-		if strings.ToLower(val) == "true" {
-			i.SaveConfig = true
-		}
-
+		i.SaveConfig = strings.EqualFold(val, "true")
 	}
 
 	return i
