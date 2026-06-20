@@ -128,4 +128,4 @@ is in [`api`](api).
 
 ## License
 
-See the repository for license details.
+0BSD — see [LICENSE](LICENSE).
