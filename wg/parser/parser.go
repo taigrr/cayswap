@@ -212,7 +212,10 @@ func (p Peer) addLine(line string) Peer {
 }
 
 func ReduceIP(i string) string {
-	_, a, _ := net.ParseCIDR(i)
+	_, a, err := net.ParseCIDR(i)
+	if err != nil {
+		return i
+	}
 	return a.String()
 }
 
@@ -328,6 +331,10 @@ func ParseConfig(file string) (Config, error) {
 		case modePeer:
 			c.Peers[peer] = c.Peers[peer].addLine(line)
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return c, err
 	}
 
 	return c, nil
