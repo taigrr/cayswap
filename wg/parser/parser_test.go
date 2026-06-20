@@ -223,6 +223,25 @@ func TestReduceIP(t *testing.T) {
 	}
 }
 
+func TestHostIP(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"10.0.0.5/24", "10.0.0.5/32"},
+		{"10.0.0.5/16", "10.0.0.5/32"},
+		{"192.168.1.100/32", "192.168.1.100/32"},
+		{"fd00::1/64", "fd00::1/128"},
+		{"not-cidr", "not-cidr"},
+		{"", ""},
+	}
+	for _, tc := range tests {
+		if got := HostIP(tc.input); got != tc.want {
+			t.Errorf("HostIP(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
 func TestParseAddress(t *testing.T) {
 	// CIDR notation should work
 	addr, err := parseAddress("10.0.0.1/32")

@@ -1,1 +1,2 @@
-cayswap
+# built binary (anchored to repo root so it doesn't match cmd/cayswap/)
+/cayswap

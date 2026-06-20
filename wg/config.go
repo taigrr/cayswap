@@ -43,9 +43,12 @@ func ClientAdd(c types.Request) error {
 	}
 	restart.Lock()
 	defer restart.Unlock()
-	conf, _ := readConfig()
+	conf, err := readConfig()
+	if err != nil {
+		return fmt.Errorf("reading config: %w", err)
+	}
 	p := parser.NewPeer()
-	for _, ip := range strings.Split(c.IPAddr, ",") {
+	for ip := range strings.SplitSeq(c.IPAddr, ",") {
 		ip = strings.TrimSpace(ip)
 		if ip != "" {
 			p.AllowedIPs = append(p.AllowedIPs, parser.Address(ip))
@@ -54,13 +57,22 @@ func ClientAdd(c types.Request) error {
 	p.Comment = c.Comment
 	p.PublicKey = c.PubKey
 	conf.Peers = append(conf.Peers, p)
-	writeConfig(conf)
+	if err := writeConfig(conf); err != nil {
+		return fmt.Errorf("writing config: %w", err)
+	}
 	return nil
 }
-func ServerAdd(c types.Request, opts types.ServerOpts) {
+
+func ServerAdd(c types.Request, opts types.ServerOpts) error {
+	if c.PubKey == "" {
+		return errors.New("public key is empty")
+	}
 	restart.Lock()
 	defer restart.Unlock()
-	conf, _ := readConfig()
+	conf, err := readConfig()
+	if err != nil {
+		return fmt.Errorf("reading config: %w", err)
+	}
 	p := parser.NewPeer()
 	p.AllowedIPs = append(p.AllowedIPs, parser.Address(c.IPAddr))
 	p.Comment = c.Comment
@@ -69,8 +81,10 @@ func ServerAdd(c types.Request, opts types.ServerOpts) {
 	p.PersistentKeepAlive = opts.PersistentKeepAlive
 	p.PresharedKey = opts.PresharedKey
 	conf.Peers = append(conf.Peers, p)
-	writeConfig(conf)
-
+	if err := writeConfig(conf); err != nil {
+		return fmt.Errorf("writing config: %w", err)
+	}
+	return nil
 }
 func getIP() string {
 	c, err := ReadConfig()
@@ -116,16 +130,21 @@ func ReadConfig() (parser.Config, error) {
 func readConfig() (parser.Config, error) {
 	return parser.ParseConfig(fmt.Sprintf("/etc/wireguard/%s.conf", wgInterface))
 }
-func writeConfig(p parser.Config) {
-	os.WriteFile(fmt.Sprintf("/etc/wireguard/%s.conf", wgInterface), []byte(p.String()), 0600)
-}
-func WriteConfig(p parser.Config) {
-	restart.Lock()
-	defer restart.Unlock()
-	writeConfig(p)
+func writeConfig(p parser.Config) error {
+	return os.WriteFile(fmt.Sprintf("/etc/wireguard/%s.conf", wgInterface), []byte(p.String()), 0600)
 }
 
-func RestartInterface() {
+func WriteConfig(p parser.Config) error {
+	restart.Lock()
+	defer restart.Unlock()
+	return writeConfig(p)
+}
+
+// RestartInterface debounces interface restarts: concurrent callers within a
+// 30s window collapse into a single wg-quick restart. It returns any error
+// from the restart it actually performs (callers that lose the debounce race
+// return nil).
+func RestartInterface() error {
 	restart.Lock()
 	needsRestart = true
 	restart.Unlock()
@@ -134,8 +153,11 @@ func RestartInterface() {
 	defer restart.Unlock()
 	if needsRestart {
 		needsRestart = false
-		systemctl.Restart(context.Background(), fmt.Sprintf("wg-quick@%s", wgInterface), systemctl.Options{})
+		if err := systemctl.Restart(context.Background(), fmt.Sprintf("wg-quick@%s", wgInterface), systemctl.Options{}); err != nil {
+			return fmt.Errorf("restarting wg-quick@%s: %w", wgInterface, err)
+		}
 	}
+	return nil
 }
 
 func GenerateReq() types.Request {

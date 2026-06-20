@@ -2,6 +2,7 @@ package parser
 
 import (
 	"bufio"
+	"fmt"
 	"net"
 	"os"
 	"strconv"
@@ -127,7 +128,8 @@ func (p Peer) String() string {
 	var b strings.Builder
 	b.WriteString("[Peer]")
 	if p.Comment != "" {
-		b.WriteString(" # " + p.Comment)
+		b.WriteString(" # ")
+		b.WriteString(p.Comment)
 	}
 	b.WriteString("\n")
 
@@ -191,7 +193,7 @@ func (p Peer) addLine(line string) Peer {
 	case "publickey":
 		p.PublicKey = val
 	case "allowedips":
-		for _, a := range strings.Split(val, ",") {
+		for a := range strings.SplitSeq(val, ",") {
 			address, err := parseAddress(a)
 			if err == nil {
 				p.AllowedIPs = append(p.AllowedIPs, address)
@@ -211,12 +213,30 @@ func (p Peer) addLine(line string) Peer {
 	return p
 }
 
+// ReduceIP returns the network address for the given CIDR (e.g. 10.0.0.5/24
+// becomes 10.0.0.0/24). If the input is not valid CIDR it is returned
+// unchanged. This is used to advertise the hub's whole subnet to spokes.
 func ReduceIP(i string) string {
 	_, a, err := net.ParseCIDR(i)
 	if err != nil {
 		return i
 	}
 	return a.String()
+}
+
+// HostIP returns the address with a single-host mask (/32 for IPv4, /128 for
+// IPv6), suitable for an AllowedIPs entry that pins exactly one peer. If the
+// input is not valid CIDR it is returned unchanged.
+func HostIP(i string) string {
+	ip, _, err := net.ParseCIDR(i)
+	if err != nil {
+		return i
+	}
+	bits := 32
+	if ip.To4() == nil {
+		bits = 128
+	}
+	return fmt.Sprintf("%s/%d", ip.String(), bits)
 }
 
 func parseAddress(a string) (Address, error) {
@@ -249,7 +269,7 @@ func (i Interface) addLine(line string) Interface {
 			i.ListenPort = port
 		}
 	case "address":
-		for _, a := range strings.Split(val, ",") {
+		for a := range strings.SplitSeq(val, ",") {
 			address, err := parseAddress(a)
 			if err == nil {
 				i.Addresses = append(i.Addresses, address)
@@ -261,7 +281,7 @@ func (i Interface) addLine(line string) Interface {
 			i.MTU = mtu
 		}
 	case "dns":
-		for _, a := range strings.Split(val, ",") {
+		for a := range strings.SplitSeq(val, ",") {
 			address, err := parseAddress(a)
 			if err == nil {
 				i.DNS = append(i.DNS, address)
