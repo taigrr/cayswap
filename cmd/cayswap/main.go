@@ -125,7 +125,9 @@ server automatically shuts down after 15 minutes for security.`,
 				<-ctx.Done()
 				shutdownCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
 				defer stop()
-				_ = server.Shutdown(shutdownCtx)
+				if err := server.Shutdown(shutdownCtx); err != nil {
+					log.Printf("graceful shutdown failed: %v", err)
+				}
 			}()
 
 			log.Printf("cayswap listening on %s (auto-stops in %s)", addr, serverLifetime)
@@ -160,15 +162,12 @@ configuration and restart the interface to establish the tunnel.`,
 			auth.SetKey(key)
 			wg.SetWGDevice(cmd.Flag("device").Value.String())
 
-			req := wg.GenerateReq()
+			req, err := wg.GenerateReq()
+			if err != nil {
+				return fmt.Errorf("reading local WireGuard config: %w", err)
+			}
 			// Advertise this spoke as a single host (/32 or /128).
 			req.IPAddr = parser.HostIP(req.IPAddr)
-			if req.IPAddr == "" {
-				return errors.New("could not determine local IP from WireGuard config")
-			}
-			if req.PubKey == "" {
-				return errors.New("could not determine public key from WireGuard config")
-			}
 
 			payload, err := json.Marshal(req)
 			if err != nil {
@@ -187,7 +186,7 @@ configuration and restart the interface to establish the tunnel.`,
 			if err != nil {
 				return fmt.Errorf("contacting server: %w", err)
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
 				return fmt.Errorf("server returned %s", resp.Status)
 			}
@@ -226,8 +225,9 @@ func versionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Print the cayswap version",
 		Args:  cobra.NoArgs,
-		Run: func(cmd *cobra.Command, _ []string) {
-			fmt.Fprintln(cmd.OutOrStdout(), version)
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			_, err := fmt.Fprintln(cmd.OutOrStdout(), version)
+			return err
 		},
 	}
 }

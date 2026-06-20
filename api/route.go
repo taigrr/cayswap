@@ -84,9 +84,18 @@ func ReceiveKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("Success: Client %s added for (%s)", req.Comment, req.IPAddr)
-	go restartInterface()
+	go func() {
+		if err := restartInterface(); err != nil {
+			log.Printf("Error restarting interface after adding %s: %v", req.Comment, err)
+		}
+	}()
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	resp := generateReq()
+	resp, err := generateReq()
+	if err != nil {
+		log.Printf("Error building response for %s: %v", clientIP, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 	resp.IPAddr = reduceIP(resp.IPAddr)
 	jr, err := marshalJSON(resp)
 	if err != nil {

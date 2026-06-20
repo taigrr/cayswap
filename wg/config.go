@@ -2,7 +2,6 @@ package wg
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -39,13 +38,13 @@ func ClientExists(key string, ip string) bool {
 
 func ClientAdd(c types.Request) error {
 	if c.PubKey == "" {
-		return errors.New("public key is empty")
+		return keyErr(KeyPublic, ErrKeyEmpty, nil)
 	}
 	restart.Lock()
 	defer restart.Unlock()
 	conf, err := readConfig()
 	if err != nil {
-		return fmt.Errorf("reading config: %w", err)
+		return fmt.Errorf("%w: %w", ErrReadConfig, err)
 	}
 	p := parser.NewPeer()
 	for ip := range strings.SplitSeq(c.IPAddr, ",") {
@@ -58,20 +57,20 @@ func ClientAdd(c types.Request) error {
 	p.PublicKey = c.PubKey
 	conf.Peers = append(conf.Peers, p)
 	if err := writeConfig(conf); err != nil {
-		return fmt.Errorf("writing config: %w", err)
+		return fmt.Errorf("%w: %w", ErrWriteConfig, err)
 	}
 	return nil
 }
 
 func ServerAdd(c types.Request, opts types.ServerOpts) error {
 	if c.PubKey == "" {
-		return errors.New("public key is empty")
+		return keyErr(KeyPublic, ErrKeyEmpty, nil)
 	}
 	restart.Lock()
 	defer restart.Unlock()
 	conf, err := readConfig()
 	if err != nil {
-		return fmt.Errorf("reading config: %w", err)
+		return fmt.Errorf("%w: %w", ErrReadConfig, err)
 	}
 	p := parser.NewPeer()
 	p.AllowedIPs = append(p.AllowedIPs, parser.Address(c.IPAddr))
@@ -82,30 +81,30 @@ func ServerAdd(c types.Request, opts types.ServerOpts) error {
 	p.PresharedKey = opts.PresharedKey
 	conf.Peers = append(conf.Peers, p)
 	if err := writeConfig(conf); err != nil {
-		return fmt.Errorf("writing config: %w", err)
+		return fmt.Errorf("%w: %w", ErrWriteConfig, err)
 	}
 	return nil
 }
-func getIP() string {
+func getIP() (string, error) {
 	c, err := ReadConfig()
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("%w: %w", ErrReadConfig, err)
 	}
-	return c.Interface.Addresses.String()
+	return c.Interface.Addresses.String(), nil
 }
 
 // GetPubKey returns the public key derived from the interface's private key.
 func GetPubKey() (string, error) {
 	c, err := ReadConfig()
 	if err != nil {
-		return "", fmt.Errorf("reading config: %w", err)
+		return "", fmt.Errorf("%w: %w", ErrReadConfig, err)
 	}
 	if c.Interface.PrivateKey == "" {
-		return "", errors.New("private key is empty")
+		return "", keyErr(KeyPrivate, ErrKeyEmpty, nil)
 	}
 	key, err := pubKey(c.Interface.PrivateKey)
 	if err != nil {
-		return "", fmt.Errorf("deriving public key: %w", err)
+		return "", err
 	}
 	return key, nil
 }
@@ -113,14 +112,17 @@ func GetPubKey() (string, error) {
 func pubKey(priv string) (string, error) {
 	k, err := wgtypes.ParseKey(priv)
 	if err != nil {
-		return "", fmt.Errorf("parsing private key: %w", err)
+		return "", keyErr(KeyPrivate, ErrKeyParse, err)
 	}
 	return k.PublicKey().String(), nil
 }
 
-func NewPrivKey() string {
-	k, _ := wgtypes.GeneratePrivateKey()
-	return k.String()
+func NewPrivKey() (string, error) {
+	k, err := wgtypes.GeneratePrivateKey()
+	if err != nil {
+		return "", keyErr(KeyPrivate, ErrKeyGenerate, err)
+	}
+	return k.String(), nil
 }
 func ReadConfig() (parser.Config, error) {
 	restart.Lock()
@@ -154,18 +156,29 @@ func RestartInterface() error {
 	if needsRestart {
 		needsRestart = false
 		if err := systemctl.Restart(context.Background(), fmt.Sprintf("wg-quick@%s", wgInterface), systemctl.Options{}); err != nil {
-			return fmt.Errorf("restarting wg-quick@%s: %w", wgInterface, err)
+			return fmt.Errorf("%w: %w", ErrRestart, err)
 		}
 	}
 	return nil
 }
 
-func GenerateReq() types.Request {
+// GenerateReq builds a key-exchange request describing this node: its
+// interface address, derived public key, and hostname (best-effort, used only
+// as a peer comment).
+func GenerateReq() (types.Request, error) {
 	var r types.Request
-	r.IPAddr = getIP()
-	r.PubKey, _ = GetPubKey()
+	ip, err := getIP()
+	if err != nil {
+		return r, err
+	}
+	r.IPAddr = ip
+	pub, err := GetPubKey()
+	if err != nil {
+		return r, err
+	}
+	r.PubKey = pub
 	r.Comment, _ = os.Hostname()
-	return r
+	return r, nil
 }
 func SetWGDevice(d string) {
 	wgInterface = d

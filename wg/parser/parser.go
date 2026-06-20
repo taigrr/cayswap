@@ -261,7 +261,7 @@ func ParseConfig(file string) (Config, error) {
 	if err != nil {
 		return c, err
 	}
-	defer readFile.Close()
+	defer func() { _ = readFile.Close() }()
 	scanner := bufio.NewScanner(readFile)
 	scanner.Split(bufio.ScanLines)
 

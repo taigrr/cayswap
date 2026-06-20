@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/spf13/viper"
+
+	"github.com/taigrr/cayswap/util"
 )
 
 func TestRootCmdHasSubcommands(t *testing.T) {
@@ -60,8 +62,10 @@ func TestVersionCmdOutput(t *testing.T) {
 
 func TestRequireRoot(t *testing.T) {
 	err := requireRoot()
-	if isRoot := err == nil; isRoot {
-		// Running as root: requireRoot must succeed silently.
+	if util.IsRoot() {
+		if err != nil {
+			t.Fatalf("expected requireRoot to succeed as root, got %v", err)
+		}
 		return
 	}
 	if err == nil {
