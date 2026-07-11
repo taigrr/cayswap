@@ -89,6 +89,17 @@ func authKey(cmd *cobra.Command) string {
 	return viper.GetString("auth")
 }
 
+func requiredFlag(cmd *cobra.Command, name string) (string, error) {
+	value, err := cmd.Flags().GetString(name)
+	if err != nil {
+		return "", err
+	}
+	if value == "" {
+		return "", fmt.Errorf("%s is required", name)
+	}
+	return value, nil
+}
+
 func requireRoot() error {
 	if !util.IsRoot() {
 		return errors.New("cayswap must be run as root to manage WireGuard")
@@ -115,6 +126,11 @@ server automatically shuts down after 15 minutes for security.`,
 			}
 			auth.SetKey(key)
 			wg.SetWGDevice(cmd.Flag("device").Value.String())
+			restart, err := cmd.Flags().GetBool("restart")
+			if err != nil {
+				return err
+			}
+			api.SetRestartEnabled(restart)
 
 			addr := cmd.Flag("interface").Value.String()
 			server := &http.Server{Addr: addr, Handler: api.NewRouter()}
@@ -162,6 +178,14 @@ configuration and restart the interface to establish the tunnel.`,
 			auth.SetKey(key)
 			wg.SetWGDevice(cmd.Flag("device").Value.String())
 
+			serverEndpoint, err := requiredFlag(cmd, "server-endpoint")
+			if err != nil {
+				return err
+			}
+			wireguardEndpoint, err := requiredFlag(cmd, "wireguard-endpoint")
+			if err != nil {
+				return err
+			}
 			req, err := wg.GenerateReq()
 			if err != nil {
 				return fmt.Errorf("reading local WireGuard config: %w", err)
@@ -173,7 +197,7 @@ configuration and restart the interface to establish the tunnel.`,
 			if err != nil {
 				return fmt.Errorf("encoding request: %w", err)
 			}
-			url := fmt.Sprintf("http://%s/key", cmd.Flag("server-endpoint").Value.String())
+			url := fmt.Sprintf("http://%s/key", serverEndpoint)
 			httpReq, err := http.NewRequestWithContext(cmd.Context(), http.MethodPost, url, bytes.NewReader(payload))
 			if err != nil {
 				return fmt.Errorf("building request: %w", err)
@@ -181,7 +205,7 @@ configuration and restart the interface to establish the tunnel.`,
 			httpReq.Header.Set("Content-Type", "application/json; charset=UTF-8")
 			httpReq.Header.Set("key", key)
 
-			log.Printf("connecting to server %s", cmd.Flag("server-endpoint").Value.String())
+			log.Printf("connecting to server %s", serverEndpoint)
 			resp, err := http.DefaultClient.Do(httpReq)
 			if err != nil {
 				return fmt.Errorf("contacting server: %w", err)
@@ -200,11 +224,15 @@ configuration and restart the interface to establish the tunnel.`,
 			}
 			if err := wg.ServerAdd(req, types.ServerOpts{
 				PersistentKeepAlive: 25,
-				Endpoint:            cmd.Flag("wireguard-endpoint").Value.String(),
+				Endpoint:            wireguardEndpoint,
 			}); err != nil {
 				return fmt.Errorf("adding server peer: %w", err)
 			}
-			if cmd.Flag("restart").Value.String() == "true" {
+			restart, err := cmd.Flags().GetBool("restart")
+			if err != nil {
+				return err
+			}
+			if restart {
 				if err := wg.RestartInterface(); err != nil {
 					return fmt.Errorf("restarting interface: %w", err)
 				}

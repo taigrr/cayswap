@@ -37,10 +37,17 @@ var (
 	clientExists     = wg.ClientExists
 	clientAdd        = wg.ClientAdd
 	restartInterface = wg.RestartInterface
+	restartEnabled   = true
 	generateReq      = wg.GenerateReq
 	reduceIP         = parser.ReduceIP
 	marshalJSON      = defaultMarshalJSON
 )
+
+// SetRestartEnabled controls whether successful key exchanges reload the
+// WireGuard interface after writing a new peer.
+func SetRestartEnabled(enabled bool) {
+	restartEnabled = enabled
+}
 
 func defaultMarshalJSON(v any) ([]byte, error) {
 	return json.Marshal(v)
@@ -84,11 +91,13 @@ func ReceiveKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("Success: Client %s added for (%s)", req.Comment, req.IPAddr)
-	go func() {
-		if err := restartInterface(); err != nil {
-			log.Printf("Error restarting interface after adding %s: %v", req.Comment, err)
-		}
-	}()
+	if restartEnabled {
+		go func() {
+			if err := restartInterface(); err != nil {
+				log.Printf("Error restarting interface after adding %s: %v", req.Comment, err)
+			}
+		}()
+	}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	resp, err := generateReq()
 	if err != nil {

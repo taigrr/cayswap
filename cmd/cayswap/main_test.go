@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -45,6 +46,28 @@ func TestAuthKeyFallsBackToViper(t *testing.T) {
 	root := rootCmd()
 	if got := authKey(root); got != "viper-key" {
 		t.Errorf("authKey() = %q, want viper-key", got)
+	}
+}
+
+func TestRequiredFlag(t *testing.T) {
+	cmd := swapCmd()
+	if _, err := requiredFlag(cmd, "server-endpoint"); err == nil || !strings.Contains(err.Error(), "server-endpoint is required") {
+		t.Fatalf("requiredFlag missing value error = %v, want server-endpoint required", err)
+	}
+
+	if err := cmd.Flags().Set("server-endpoint", "hub.example.com:5150"); err != nil {
+		t.Fatalf("set server-endpoint: %v", err)
+	}
+	got, err := requiredFlag(cmd, "server-endpoint")
+	if err != nil {
+		t.Fatalf("requiredFlag set value: %v", err)
+	}
+	if got != "hub.example.com:5150" {
+		t.Errorf("requiredFlag() = %q, want hub.example.com:5150", got)
+	}
+
+	if _, err := requiredFlag(cmd, "missing"); err == nil {
+		t.Fatal("expected missing flag error")
 	}
 }
 
