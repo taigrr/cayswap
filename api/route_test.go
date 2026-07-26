@@ -16,6 +16,7 @@ func resetAPIHooks() {
 	clientExists = func(string, string) bool { return false }
 	clientAdd = func(types.Request) error { return nil }
 	restartInterface = func() error { return nil }
+	restartEnabled = true
 	generateReq = func() (types.Request, error) {
 		return types.Request{IPAddr: "10.0.0.1/24", PubKey: "server-pub", Comment: "server"}, nil
 	}
@@ -105,6 +106,31 @@ func TestReceiveKeyAddsClientAndReturnsServerDetails(t *testing.T) {
 	const want = `{"PubKey":"server-pub","IPAddr":"10.0.0.1/24","Comment":"server"}`
 	if got := rec.Body.String(); got != want {
 		t.Fatalf("expected body %s, got %s", want, got)
+	}
+}
+
+func TestReceiveKeySkipsRestartWhenDisabled(t *testing.T) {
+	resetAPIHooks()
+	defer resetAPIHooks()
+
+	restarted := make(chan struct{}, 1)
+	restartInterface = func() error { restarted <- struct{}{}; return nil }
+	SetRestartEnabled(false)
+
+	body := `{"PubKey":"client-pub","IPAddr":"10.0.0.2/32","Comment":"laptop"}`
+	req := httptest.NewRequest(http.MethodPost, "/key", bytes.NewBufferString(body))
+	req.Header.Set("key", "ok")
+	rec := httptest.NewRecorder()
+
+	ReceiveKey(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	select {
+	case <-restarted:
+		t.Fatal("expected interface restart to be skipped")
+	case <-time.After(50 * time.Millisecond):
 	}
 }
 
