@@ -16,6 +16,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"time"
 
 	"github.com/charmbracelet/fang"
@@ -30,8 +31,17 @@ import (
 	"github.com/taigrr/cayswap/wg/parser"
 )
 
-// version is overridden at build time via -ldflags "-X main.version=...".
-var version = "dev"
+// version defaults to the module version embedded by the Go toolchain and can
+// be overridden at build time via -ldflags "-X main.version=...".
+var version = "devel"
+
+func init() {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if v := info.Main.Version; v != "" && v != "(devel)" {
+			version = v
+		}
+	}
+}
 
 // serverLifetime bounds how long the hub stays up before shutting down,
 // keeping the key-exchange window small.
