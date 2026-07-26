@@ -36,6 +36,11 @@ import (
 var version = "devel"
 
 func init() {
+	// Only derive from build info when not overridden via ldflags, so
+	// release builds that stamp -X main.version win.
+	if version != "devel" {
+		return
+	}
 	if info, ok := debug.ReadBuildInfo(); ok {
 		if v := info.Main.Version; v != "" && v != "(devel)" {
 			version = v
