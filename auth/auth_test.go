@@ -11,6 +11,9 @@ func TestIsAuthorized(t *testing.T) {
 	if IsAuthorized("wrong-key") {
 		t.Error("expected wrong key to be rejected")
 	}
+	if IsAuthorized("secret") {
+		t.Error("expected shorter key to be rejected")
+	}
 	if IsAuthorized("") {
 		t.Error("expected empty key to be rejected")
 	}
@@ -24,8 +27,7 @@ func TestIsAuthorizedEmptyStored(t *testing.T) {
 	if IsAuthorized("anything") {
 		t.Error("expected rejection when stored key is empty")
 	}
-	// Empty vs empty: technically matches, but both empty
-	if !IsAuthorized("") {
-		t.Error("expected empty==empty to match")
+	if IsAuthorized("") {
+		t.Error("expected empty key to be rejected when stored key is empty")
 	}
 }
