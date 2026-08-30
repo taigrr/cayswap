@@ -150,15 +150,18 @@ func TestReceiveKeyHandlesClientAddErrors(t *testing.T) {
 	}
 }
 
-func TestReceiveKeyHandlesMarshalErrors(t *testing.T) {
+func TestReceiveKeyDoesNotAddClientWhenGenerateReqFails(t *testing.T) {
 	resetAPIHooks()
 	defer resetAPIHooks()
 
-	marshalJSON = func(any) ([]byte, error) { return nil, errors.New("boom") }
-	// clientAdd succeeds, so the restart goroutine is spawned; synchronize on
-	// it so the deferred resetAPIHooks doesn't race the hook read.
-	restarted := make(chan struct{}, 1)
-	restartInterface = func() error { restarted <- struct{}{}; return nil }
+	added := false
+	clientAdd = func(types.Request) error {
+		added = true
+		return nil
+	}
+	generateReq = func() (types.Request, error) {
+		return types.Request{}, errors.New("boom")
+	}
 	req := httptest.NewRequest(http.MethodPost, "/key", bytes.NewBufferString(`{"PubKey":"client-pub","IPAddr":"10.0.0.2/32"}`))
 	req.Header.Set("key", "ok")
 	rec := httptest.NewRecorder()
@@ -168,9 +171,31 @@ func TestReceiveKeyHandlesMarshalErrors(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
 	}
-	select {
-	case <-restarted:
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("expected interface restart to be triggered")
+	if added {
+		t.Fatal("expected handler to stop before adding client")
+	}
+}
+
+func TestReceiveKeyDoesNotAddClientWhenMarshalFails(t *testing.T) {
+	resetAPIHooks()
+	defer resetAPIHooks()
+
+	added := false
+	clientAdd = func(types.Request) error {
+		added = true
+		return nil
+	}
+	marshalJSON = func(any) ([]byte, error) { return nil, errors.New("boom") }
+	req := httptest.NewRequest(http.MethodPost, "/key", bytes.NewBufferString(`{"PubKey":"client-pub","IPAddr":"10.0.0.2/32"}`))
+	req.Header.Set("key", "ok")
+	rec := httptest.NewRecorder()
+
+	ReceiveKey(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+	}
+	if added {
+		t.Fatal("expected handler to stop before adding client")
 	}
 }
