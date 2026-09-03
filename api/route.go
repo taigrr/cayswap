@@ -5,32 +5,12 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"strings"
 
-	"github.com/gorilla/mux"
 	"github.com/taigrr/cayswap/auth"
 	"github.com/taigrr/cayswap/types"
 	"github.com/taigrr/cayswap/wg"
 	"github.com/taigrr/cayswap/wg/parser"
 )
-
-type Route struct {
-	Name        string
-	Method      string
-	Pattern     string
-	HandlerFunc http.HandlerFunc
-}
-
-type Routes []Route
-
-var routes = Routes{
-	Route{
-		"SendKey",
-		strings.ToUpper("Post"),
-		"/key",
-		ReceiveKey,
-	},
-}
 
 var (
 	isAuthorized     = auth.IsAuthorized
@@ -53,16 +33,9 @@ func defaultMarshalJSON(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
 
-func NewRouter() *mux.Router {
-	router := mux.NewRouter().StrictSlash(true)
-	for _, route := range routes {
-		handler := http.Handler(route.HandlerFunc)
-		router.
-			Methods(route.Method).
-			Path(route.Pattern).
-			Name(route.Name).
-			Handler(handler)
-	}
+func NewRouter() *http.ServeMux {
+	router := http.NewServeMux()
+	router.HandleFunc("POST /key", ReceiveKey)
 	return router
 }
 
@@ -85,6 +58,19 @@ func ReceiveKey(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusExpectationFailed), http.StatusExpectationFailed)
 		return
 	}
+	resp, err := generateReq()
+	if err != nil {
+		log.Printf("Error building response for %s: %v", clientIP, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	resp.IPAddr = reduceIP(resp.IPAddr)
+	jr, err := marshalJSON(resp)
+	if err != nil {
+		log.Printf("Error encoding response for %s: %v", clientIP, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 	if err := clientAdd(req); err != nil {
 		log.Printf("Error adding client %s (%s): %v", req.Comment, req.IPAddr, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -99,19 +85,6 @@ func ReceiveKey(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	resp, err := generateReq()
-	if err != nil {
-		log.Printf("Error building response for %s: %v", clientIP, err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-	resp.IPAddr = reduceIP(resp.IPAddr)
-	jr, err := marshalJSON(resp)
-	if err != nil {
-		log.Printf("Error encoding response for %s: %v", clientIP, err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(jr); err != nil {
 		log.Printf("Error writing response to %s: %v", clientIP, err)
