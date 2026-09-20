@@ -51,6 +51,9 @@ func init() {
 // serverLifetime bounds how long the hub stays up before shutting down,
 // keeping the key-exchange window small.
 const serverLifetime = 15 * time.Minute
+const keySwapHTTPTimeout = 30 * time.Second
+
+var keySwapHTTPClient = &http.Client{Timeout: keySwapHTTPTimeout}
 
 func main() {
 	if err := fang.Execute(context.Background(), rootCmd()); err != nil {
@@ -212,16 +215,7 @@ configuration and restart the interface to establish the tunnel.`,
 			if err != nil {
 				return fmt.Errorf("encoding request: %w", err)
 			}
-			url := fmt.Sprintf("http://%s/key", serverEndpoint)
-			httpReq, err := http.NewRequestWithContext(cmd.Context(), http.MethodPost, url, bytes.NewReader(payload))
-			if err != nil {
-				return fmt.Errorf("building request: %w", err)
-			}
-			httpReq.Header.Set("Content-Type", "application/json; charset=UTF-8")
-			httpReq.Header.Set("key", key)
-
-			log.Printf("connecting to server %s", serverEndpoint)
-			resp, err := http.DefaultClient.Do(httpReq)
+			resp, err := postKeySwap(cmd.Context(), serverEndpoint, key, payload)
 			if err != nil {
 				return fmt.Errorf("contacting server: %w", err)
 			}
@@ -261,6 +255,19 @@ configuration and restart the interface to establish the tunnel.`,
 	cmd.Flags().StringP("device", "d", "wg0", "WireGuard interface to manage in /etc/wireguard/")
 	cmd.Flags().Bool("restart", true, "restart the wg-quick@ interface upon update")
 	return cmd
+}
+
+func postKeySwap(ctx context.Context, serverEndpoint, key string, payload []byte) (*http.Response, error) {
+	url := fmt.Sprintf("http://%s/key", serverEndpoint)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("building request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json; charset=UTF-8")
+	httpReq.Header.Set("key", key)
+
+	log.Printf("connecting to server %s", serverEndpoint)
+	return keySwapHTTPClient.Do(httpReq)
 }
 
 func versionCmd() *cobra.Command {

@@ -2,6 +2,10 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -80,6 +84,55 @@ func TestVersionCmdOutput(t *testing.T) {
 	}
 	if got := out.String(); got != version+"\n" {
 		t.Errorf("version output = %q, want %q", got, version+"\n")
+	}
+}
+
+func TestPostKeySwapBuildsAuthorizedRequest(t *testing.T) {
+	var gotMethod, gotPath, gotKey, gotContentType, gotBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotKey = r.Header.Get("key")
+		gotContentType = r.Header.Get("Content-Type")
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		gotBody = string(body)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	endpoint := strings.TrimPrefix(server.URL, "http://")
+	resp, err := postKeySwap(context.Background(), endpoint, "shared-key", []byte(`{"PubKey":"client"}`))
+	if err != nil {
+		t.Fatalf("postKeySwap: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if gotMethod != http.MethodPost {
+		t.Errorf("method = %q, want %q", gotMethod, http.MethodPost)
+	}
+	if gotPath != "/key" {
+		t.Errorf("path = %q, want /key", gotPath)
+	}
+	if gotKey != "shared-key" {
+		t.Errorf("key header = %q, want shared-key", gotKey)
+	}
+	if gotContentType != "application/json; charset=UTF-8" {
+		t.Errorf("content type = %q, want application/json; charset=UTF-8", gotContentType)
+	}
+	if gotBody != `{"PubKey":"client"}` {
+		t.Errorf("body = %q", gotBody)
+	}
+}
+
+func TestKeySwapHTTPClientHasTimeout(t *testing.T) {
+	if keySwapHTTPClient.Timeout != keySwapHTTPTimeout {
+		t.Fatalf("keySwapHTTPClient timeout = %s, want %s", keySwapHTTPClient.Timeout, keySwapHTTPTimeout)
 	}
 }
 
