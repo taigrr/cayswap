@@ -332,3 +332,26 @@ func TestConfigStringMultiplePeers(t *testing.T) {
 		t.Errorf("expected 2 [Peer] sections, got %d", strings.Count(output, "[Peer]"))
 	}
 }
+
+// Interface addresses can contain both IPv4 and IPv6 CIDRs. Each advertised
+// route must be transformed, rather than treating the list as one CIDR.
+func TestAddressListRoutes(t *testing.T) {
+	tests := []struct {
+		name, input, network, host string
+	}{
+		{"dual stack", "10.0.0.5/24,fd00::5/64", "10.0.0.0/24,fd00::/64", "10.0.0.5/32,fd00::5/128"},
+		{"whitespace", " 10.0.0.5/24 , fd00::5/64 ", "10.0.0.0/24,fd00::/64", "10.0.0.5/32,fd00::5/128"},
+		{"multiple ipv4", "10.0.0.5/24,192.168.1.7/16", "10.0.0.0/24,192.168.0.0/16", "10.0.0.5/32,192.168.1.7/32"},
+		{"invalid entry preserved", "invalid,10.0.0.5/24", "invalid,10.0.0.0/24", "invalid,10.0.0.5/32"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ReduceIP(tc.input); got != tc.network {
+				t.Errorf("ReduceIP = %q, want %q", got, tc.network)
+			}
+			if got := HostIP(tc.input); got != tc.host {
+				t.Errorf("HostIP = %q, want %q", got, tc.host)
+			}
+		})
+	}
+}
