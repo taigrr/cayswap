@@ -161,9 +161,13 @@ func (p Peer) addLine(line string) Peer {
 }
 
 // ReduceIP returns the network address for the given CIDR (e.g. 10.0.0.5/24
-// becomes 10.0.0.0/24). If the input is not valid CIDR it is returned
-// unchanged. This is used to advertise the hub's whole subnet to spokes.
+// becomes 10.0.0.0/24). Comma-separated lists are transformed entry by
+// entry. Invalid entries are preserved. This advertises hub subnets to spokes.
 func ReduceIP(i string) string {
+	return mapAddressList(i, reduceIP)
+}
+
+func reduceIP(i string) string {
 	_, a, err := net.ParseCIDR(i)
 	if err != nil {
 		return i
@@ -173,8 +177,13 @@ func ReduceIP(i string) string {
 
 // HostIP returns the address with a single-host mask (/32 for IPv4, /128 for
 // IPv6), suitable for an AllowedIPs entry that pins exactly one peer. If the
-// input is not valid CIDR it is returned unchanged.
+// input contains multiple comma-separated CIDRs, each is transformed.
+// Invalid entries are preserved.
 func HostIP(i string) string {
+	return mapAddressList(i, hostIP)
+}
+
+func hostIP(i string) string {
 	ip, _, err := net.ParseCIDR(i)
 	if err != nil {
 		return i
@@ -184,6 +193,15 @@ func HostIP(i string) string {
 		bits = 128
 	}
 	return fmt.Sprintf("%s/%d", ip.String(), bits)
+}
+
+// mapAddressList applies a route transformation to each interface address.
+func mapAddressList(input string, transform func(string) string) string {
+	addresses := strings.Split(input, ",")
+	for index, address := range addresses {
+		addresses[index] = transform(strings.TrimSpace(address))
+	}
+	return strings.Join(addresses, ",")
 }
 
 func parseAddress(a string) (Address, error) {
