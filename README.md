@@ -50,6 +50,9 @@ and tear it down.
 
 ## Install
 
+Building from source requires Go 1.27.4 or newer, including the standard-library
+HTTP security fix in that release.
+
 ```bash
 go install github.com/taigrr/cayswap/cmd/cayswap@latest
 ```
